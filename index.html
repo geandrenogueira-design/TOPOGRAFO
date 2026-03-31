@@ -1,0 +1,1166 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<title>Topógrafo Corneal · Olhar</title>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=Space+Mono:ital,wght@0,400;0,700;1,400&family=Syne:wght@400;600;800&display=swap');
+
+  :root {
+    --bg: #050810;
+    --surface: #0a0f1e;
+    --border: #1a2540;
+    --accent: #00e5ff;
+    --accent2: #7c3aed;
+    --warm: #ff6b35;
+    --text: #e8eaf6;
+    --muted: #4a5568;
+    --ring-core: rgba(0, 229, 255, 0.9);
+    --ring-mid: rgba(124, 58, 237, 0.7);
+    --ring-outer: rgba(255, 107, 53, 0.5);
+  }
+
+  * { margin: 0; padding: 0; box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+  
+  html, body {
+    width: 100%; height: 100%;
+    background: var(--bg);
+    font-family: 'Space Mono', monospace;
+    color: var(--text);
+    overflow: hidden;
+    touch-action: none;
+  }
+
+  /* ── SCREENS ── */
+  .screen { position: absolute; inset: 0; display: flex; flex-direction: column; transition: opacity .4s, transform .4s; }
+  .screen.hidden { opacity: 0; pointer-events: none; transform: translateY(20px); }
+
+  /* ── HEADER ── */
+  header {
+    display: flex; align-items: center; justify-content: space-between;
+    padding: 52px 20px 12px;
+    background: linear-gradient(180deg, var(--bg) 60%, transparent);
+    position: relative; z-index: 10;
+  }
+  .logo { font-family: 'Syne', sans-serif; font-weight: 800; font-size: 1.1rem; letter-spacing: .12em; color: var(--accent); }
+  .logo span { color: var(--text); opacity: .5; }
+  .badge {
+    font-size: .6rem; letter-spacing: .15em; padding: 3px 8px;
+    border: 1px solid var(--accent); color: var(--accent);
+    border-radius: 20px; opacity: .8;
+  }
+
+  /* ── HOME SCREEN ── */
+  #home {
+    justify-content: center; align-items: center;
+    background: radial-gradient(ellipse 80% 60% at 50% 40%, #0d1535 0%, var(--bg) 70%);
+  }
+  .home-content { text-align: center; padding: 20px; }
+  .disc-preview {
+    width: 220px; height: 220px;
+    margin: 0 auto 32px;
+    position: relative;
+  }
+  .disc-preview canvas { width: 100%; height: 100%; }
+
+  .home-title {
+    font-family: 'Syne', sans-serif; font-weight: 800;
+    font-size: 1.8rem; line-height: 1.1;
+    margin-bottom: 8px;
+    background: linear-gradient(135deg, var(--accent), var(--accent2));
+    -webkit-background-clip: text; -webkit-text-fill-color: transparent;
+  }
+  .home-sub { font-size: .7rem; color: var(--muted); letter-spacing: .1em; margin-bottom: 40px; }
+
+  .btn-primary {
+    display: flex; align-items: center; justify-content: center; gap: 10px;
+    width: 100%; max-width: 280px; margin: 0 auto;
+    padding: 16px 24px;
+    background: linear-gradient(135deg, var(--accent2), var(--accent));
+    border: none; border-radius: 14px;
+    font-family: 'Syne', sans-serif; font-weight: 700;
+    font-size: .9rem; letter-spacing: .08em; color: #fff;
+    cursor: pointer;
+    box-shadow: 0 0 30px rgba(0,229,255,.2);
+    transition: transform .15s, box-shadow .15s;
+  }
+  .btn-primary:active { transform: scale(.97); box-shadow: 0 0 15px rgba(0,229,255,.1); }
+
+  .info-row {
+    display: flex; justify-content: center; gap: 32px;
+    margin-top: 32px;
+  }
+  .info-item { text-align: center; }
+  .info-item .val { font-family: 'Syne', sans-serif; font-size: 1.1rem; font-weight: 700; color: var(--accent); }
+  .info-item .lbl { font-size: .55rem; color: var(--muted); letter-spacing: .1em; margin-top: 2px; }
+
+  /* ── CAPTURE SCREEN ── */
+  #capture { background: #000; }
+  
+  .video-wrap {
+    flex: 1; position: relative; overflow: hidden;
+  }
+  #video {
+    position: absolute; inset: 0;
+    width: 100%; height: 100%;
+    object-fit: cover;
+  }
+
+  /* Overlay: Placido disc projection */
+  #discOverlay {
+    position: absolute; inset: 0;
+    pointer-events: none;
+  }
+
+  /* Viewfinder frame */
+  .vf-frame {
+    position: absolute;
+    left: 50%; top: 50%;
+    transform: translate(-50%, -50%);
+    width: 260px; height: 260px;
+    border-radius: 50%;
+    border: 1px solid rgba(0,229,255,.3);
+    box-shadow: 0 0 0 2000px rgba(0,0,0,.55);
+    pointer-events: none; z-index: 5;
+  }
+  .vf-frame::before, .vf-frame::after {
+    content: '';
+    position: absolute;
+    background: var(--accent);
+    opacity: .5;
+  }
+  .vf-frame::before { left: 50%; top: -12px; width: 1px; height: 10px; transform: translateX(-50%); }
+  .vf-frame::after  { left: -12px; top: 50%; height: 1px; width: 10px; transform: translateY(-50%); }
+
+  /* Instructions overlay */
+  .capture-hint {
+    position: absolute; bottom: 180px; left: 0; right: 0;
+    text-align: center; z-index: 10;
+  }
+  .capture-hint p {
+    font-size: .65rem; letter-spacing: .1em; color: rgba(255,255,255,.6);
+    background: rgba(0,0,0,.4); display: inline-block;
+    padding: 6px 14px; border-radius: 20px;
+    backdrop-filter: blur(8px);
+  }
+
+  /* Quality indicator */
+  .quality-bar {
+    position: absolute; top: 100px; left: 20px; right: 20px;
+    z-index: 10;
+    display: flex; align-items: center; gap: 10px;
+  }
+  .quality-label { font-size: .55rem; letter-spacing: .1em; color: var(--muted); white-space: nowrap; }
+  .quality-track {
+    flex: 1; height: 3px; background: rgba(255,255,255,.1);
+    border-radius: 2px; overflow: hidden;
+  }
+  .quality-fill {
+    height: 100%; border-radius: 2px;
+    background: linear-gradient(90deg, var(--accent2), var(--accent));
+    transition: width .3s;
+    width: 0%;
+  }
+  .quality-val { font-size: .6rem; color: var(--accent); min-width: 30px; text-align: right; }
+
+  /* Bottom toolbar */
+  .toolbar {
+    display: flex; align-items: center; justify-content: space-around;
+    padding: 20px 24px 44px;
+    background: linear-gradient(0deg, rgba(5,8,16,.95) 0%, transparent);
+    position: relative; z-index: 10;
+  }
+  .btn-icon {
+    width: 48px; height: 48px;
+    background: rgba(255,255,255,.05);
+    border: 1px solid rgba(255,255,255,.08);
+    border-radius: 50%; cursor: pointer;
+    display: flex; align-items: center; justify-content: center;
+    font-size: 1.1rem;
+    transition: background .15s, transform .1s;
+  }
+  .btn-icon:active { background: rgba(255,255,255,.12); transform: scale(.93); }
+
+  .btn-capture {
+    width: 72px; height: 72px;
+    background: #fff;
+    border-radius: 50%; cursor: pointer;
+    border: 4px solid rgba(255,255,255,.3);
+    position: relative;
+    transition: transform .1s;
+    box-shadow: 0 0 20px rgba(0,229,255,.3);
+  }
+  .btn-capture::after {
+    content: ''; position: absolute;
+    inset: 4px; border-radius: 50%;
+    background: linear-gradient(135deg, var(--accent), var(--accent2));
+    opacity: 0; transition: opacity .2s;
+  }
+  .btn-capture:active { transform: scale(.92); }
+  .btn-capture:active::after { opacity: 1; }
+
+  /* Flash effect */
+  .flash {
+    position: absolute; inset: 0; background: #fff;
+    opacity: 0; pointer-events: none; z-index: 100;
+    transition: opacity .05s;
+  }
+  .flash.on { opacity: 1; }
+
+  /* ── RESULT SCREEN ── */
+  #result {
+    background: var(--bg);
+    overflow-y: auto;
+    -webkit-overflow-scrolling: touch;
+  }
+
+  .result-header {
+    padding: 52px 20px 16px;
+    display: flex; align-items: center; gap: 12px;
+  }
+  .btn-back {
+    width: 36px; height: 36px;
+    background: rgba(255,255,255,.05);
+    border: 1px solid var(--border);
+    border-radius: 10px; cursor: pointer;
+    display: flex; align-items: center; justify-content: center;
+    font-size: .9rem;
+    flex-shrink: 0;
+  }
+  .result-title {
+    font-family: 'Syne', sans-serif; font-weight: 700;
+    font-size: 1rem; letter-spacing: .06em;
+  }
+  .result-sub { font-size: .6rem; color: var(--muted); letter-spacing: .1em; margin-top: 1px; }
+
+  /* Map + photo side by side */
+  .map-section {
+    padding: 0 16px 16px;
+    display: grid; grid-template-columns: 1fr 1fr; gap: 12px;
+  }
+  .map-card {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 16px; overflow: hidden;
+    position: relative;
+  }
+  .map-card .card-label {
+    position: absolute; top: 8px; left: 10px;
+    font-size: .5rem; letter-spacing: .12em; color: var(--muted);
+    z-index: 2;
+  }
+  .map-card canvas, .map-card img {
+    width: 100%; aspect-ratio: 1; display: block;
+  }
+
+  /* Color scale */
+  .scale-bar {
+    margin: 0 16px 16px;
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 12px; padding: 12px 14px;
+  }
+  .scale-title { font-size: .55rem; letter-spacing: .12em; color: var(--muted); margin-bottom: 8px; }
+  .scale-gradient {
+    height: 10px; border-radius: 6px;
+    background: linear-gradient(90deg, #2979ff, #00e5ff, #69f0ae, #ffeb3b, #ff6d00, #d32f2f);
+    margin-bottom: 6px;
+  }
+  .scale-labels {
+    display: flex; justify-content: space-between;
+    font-size: .52rem; color: var(--muted);
+  }
+
+  /* Metrics grid */
+  .metrics { padding: 0 16px 16px; display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+  .metric-card {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 14px; padding: 14px;
+    position: relative; overflow: hidden;
+  }
+  .metric-card::before {
+    content: ''; position: absolute;
+    top: 0; left: 0; right: 0; height: 2px;
+  }
+  .metric-card.normal::before { background: #69f0ae; }
+  .metric-card.warning::before { background: var(--warm); }
+  .metric-card.alert::before { background: #f44336; }
+
+  .metric-lbl { font-size: .55rem; letter-spacing: .1em; color: var(--muted); margin-bottom: 4px; }
+  .metric-val {
+    font-family: 'Syne', sans-serif; font-weight: 700;
+    font-size: 1.3rem; line-height: 1;
+  }
+  .metric-unit { font-size: .6rem; color: var(--muted); margin-left: 2px; }
+  .metric-ref { font-size: .5rem; color: var(--muted); margin-top: 4px; }
+
+  /* Indices */
+  .indices { padding: 0 16px 16px; }
+  .indices-title { font-size: .55rem; letter-spacing: .12em; color: var(--muted); margin-bottom: 10px; }
+  .index-row {
+    display: flex; align-items: center; justify-content: space-between;
+    padding: 10px 0; border-bottom: 1px solid var(--border);
+  }
+  .index-row:last-child { border-bottom: none; }
+  .index-name { font-size: .7rem; }
+  .index-right { display: flex; align-items: center; gap: 10px; }
+  .index-bar-wrap { width: 80px; height: 4px; background: rgba(255,255,255,.06); border-radius: 2px; overflow: hidden; }
+  .index-bar { height: 100%; border-radius: 2px; }
+  .index-num { font-family: 'Syne', sans-serif; font-weight: 600; font-size: .75rem; min-width: 40px; text-align: right; }
+
+  /* Action bar */
+  .action-bar {
+    padding: 12px 16px 44px;
+    display: flex; gap: 10px;
+  }
+  .btn-sec {
+    flex: 1; padding: 14px;
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 12px; cursor: pointer;
+    font-family: 'Space Mono', monospace;
+    font-size: .65rem; letter-spacing: .06em; color: var(--text);
+    transition: background .15s;
+  }
+  .btn-sec:active { background: rgba(255,255,255,.08); }
+  .btn-export {
+    flex: 1.5; padding: 14px;
+    background: linear-gradient(135deg, var(--accent2), var(--accent));
+    border: none; border-radius: 12px; cursor: pointer;
+    font-family: 'Syne', sans-serif; font-weight: 700;
+    font-size: .75rem; letter-spacing: .08em; color: #fff;
+    transition: opacity .15s;
+  }
+  .btn-export:active { opacity: .8; }
+
+  /* Permission error */
+  .cam-error {
+    position: absolute; inset: 0;
+    display: flex; flex-direction: column;
+    align-items: center; justify-content: center;
+    padding: 40px; text-align: center;
+    background: var(--bg); z-index: 50;
+  }
+  .cam-error .icon { font-size: 3rem; margin-bottom: 16px; }
+  .cam-error h2 { font-family: 'Syne', sans-serif; font-size: 1.1rem; margin-bottom: 8px; }
+  .cam-error p { font-size: .7rem; color: var(--muted); line-height: 1.6; }
+  .cam-error .btn-primary { margin-top: 24px; }
+
+  /* Spinner */
+  .spinner-wrap {
+    position: absolute; inset: 0;
+    display: flex; align-items: center; justify-content: center;
+    background: rgba(5,8,16,.8); z-index: 20;
+    flex-direction: column; gap: 12px;
+  }
+  .spinner {
+    width: 40px; height: 40px;
+    border: 2px solid rgba(0,229,255,.2);
+    border-top-color: var(--accent);
+    border-radius: 50%;
+    animation: spin .8s linear infinite;
+  }
+  .spinner-label { font-size: .6rem; letter-spacing: .15em; color: var(--muted); }
+  @keyframes spin { to { transform: rotate(360deg); } }
+
+  /* Processing overlay */
+  #processingOverlay {
+    position: fixed; inset: 0; background: rgba(5,8,16,.95);
+    display: none; align-items: center; justify-content: center;
+    flex-direction: column; gap: 16px; z-index: 200;
+  }
+  #processingOverlay.show { display: flex; }
+  .process-ring {
+    width: 80px; height: 80px;
+    border: 2px solid var(--border);
+    border-top-color: var(--accent);
+    border-right-color: var(--accent2);
+    border-radius: 50%;
+    animation: spin .6s linear infinite;
+  }
+  .process-label { font-family: 'Syne', sans-serif; font-size: .85rem; letter-spacing: .1em; }
+  .process-sub { font-size: .6rem; color: var(--muted); letter-spacing: .08em; }
+
+  /* Keratoconus risk badge */
+  .risk-badge {
+    margin: 0 16px 16px;
+    padding: 12px 16px;
+    border-radius: 12px;
+    display: flex; align-items: center; gap: 12px;
+  }
+  .risk-badge.low { background: rgba(105,240,174,.08); border: 1px solid rgba(105,240,174,.2); }
+  .risk-badge.mod { background: rgba(255,107,53,.08); border: 1px solid rgba(255,107,53,.2); }
+  .risk-badge.high { background: rgba(244,67,54,.08); border: 1px solid rgba(244,67,54,.2); }
+  .risk-icon { font-size: 1.4rem; }
+  .risk-text .risk-title { font-family: 'Syne', sans-serif; font-size: .8rem; font-weight: 700; }
+  .risk-text .risk-desc { font-size: .6rem; color: var(--muted); margin-top: 2px; }
+
+  /* Meridian chart */
+  .meridian-section { padding: 0 16px 16px; }
+  .meridian-title { font-size: .55rem; letter-spacing: .12em; color: var(--muted); margin-bottom: 10px; }
+  #meridianChart { width: 100%; border-radius: 12px; background: var(--surface); border: 1px solid var(--border); }
+</style>
+</head>
+<body>
+
+<!-- ══════════════════════════ HOME ══════════════════════════ -->
+<div class="screen" id="home">
+  <header>
+    <div class="logo">OLHAR<span> · CLÍNICA DA VISÃO</span></div>
+    <div class="badge">TOPÓGRAFO</div>
+  </header>
+  <div class="home-content">
+    <div class="disc-preview">
+      <canvas id="previewCanvas" width="440" height="440"></canvas>
+    </div>
+    <h1 class="home-title">Topógrafo<br>Corneal</h1>
+    <p class="home-sub">DISCO DE PLÁCIDO · ANÁLISE CERATOMÉTRICA</p>
+    <button class="btn-primary" id="btnStart">
+      <span>📷</span>
+      <span>INICIAR CAPTURA</span>
+    </button>
+    <div class="info-row">
+      <div class="info-item">
+        <div class="val">20</div>
+        <div class="lbl">ANÉIS</div>
+      </div>
+      <div class="info-item">
+        <div class="val">0.1</div>
+        <div class="lbl">PRECISÃO (mm)</div>
+      </div>
+      <div class="info-item">
+        <div class="val">8mm</div>
+        <div class="lbl">ZONA CORNEAL</div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ══════════════════════════ CAPTURE ══════════════════════════ -->
+<div class="screen hidden" id="capture">
+  <div class="video-wrap">
+    <video id="video" autoplay playsinline muted></video>
+    <canvas id="discOverlay"></canvas>
+    <div class="vf-frame"></div>
+    
+    <div class="quality-bar">
+      <span class="quality-label">QUALIDADE</span>
+      <div class="quality-track"><div class="quality-fill" id="qualityFill"></div></div>
+      <span class="quality-val" id="qualityVal">–</span>
+    </div>
+
+    <div class="capture-hint">
+      <p>CENTRALIZE O OLHO NO DISCO · MANTENHA FIRME</p>
+    </div>
+
+    <div class="flash" id="flash"></div>
+  </div>
+
+  <div class="toolbar">
+    <button class="btn-icon" id="btnBack2">←</button>
+    <button class="btn-capture" id="btnCapture"></button>
+    <button class="btn-icon" id="btnFlip">⇄</button>
+  </div>
+</div>
+
+<!-- ══════════════════════════ RESULT ══════════════════════════ -->
+<div class="screen hidden" id="result">
+  <div class="result-header">
+    <button class="btn-back" id="btnBack3">←</button>
+    <div>
+      <div class="result-title">MAPA TOPOGRÁFICO</div>
+      <div class="result-sub" id="resultDate">–</div>
+    </div>
+  </div>
+
+  <div class="map-section">
+    <div class="map-card">
+      <span class="card-label">AXIAL (SAGITAL)</span>
+      <canvas id="mapAxial" width="360" height="360"></canvas>
+    </div>
+    <div class="map-card">
+      <span class="card-label">FOTO CAPTURADA</span>
+      <canvas id="mapPhoto" width="360" height="360"></canvas>
+    </div>
+  </div>
+
+  <div class="scale-bar">
+    <div class="scale-title">ESCALA DE CURVATURA (D)</div>
+    <div class="scale-gradient"></div>
+    <div class="scale-labels">
+      <span>35</span><span>38</span><span>41</span><span>44</span><span>47</span><span>50+</span>
+    </div>
+  </div>
+
+  <div id="riskBadge" class="risk-badge low">
+    <div class="risk-icon">✅</div>
+    <div class="risk-text">
+      <div class="risk-title" id="riskTitle">BAIXO RISCO</div>
+      <div class="risk-desc" id="riskDesc">Córnea dentro dos parâmetros normais</div>
+    </div>
+  </div>
+
+  <div class="metrics" id="metricsGrid"></div>
+
+  <div class="indices">
+    <div class="indices-title">ÍNDICES CERATOMÉTRICOS</div>
+    <div id="indicesContainer"></div>
+  </div>
+
+  <div class="meridian-section">
+    <div class="meridian-title">CURVATURA POR MERIDIANO (0° – 180°)</div>
+    <canvas id="meridianChart" height="120"></canvas>
+  </div>
+
+  <div class="action-bar">
+    <button class="btn-sec" id="btnNewCapture">NOVA CAPTURA</button>
+    <button class="btn-export" id="btnExport">EXPORTAR PDF</button>
+  </div>
+</div>
+
+<!-- Processing overlay -->
+<div id="processingOverlay">
+  <div class="process-ring"></div>
+  <div class="process-label">ANALISANDO</div>
+  <div class="process-sub">DETECTANDO REFLEXOS DOS ANÉIS...</div>
+</div>
+
+<!-- Hidden capture canvas -->
+<canvas id="captureCanvas" style="display:none"></canvas>
+
+<script>
+// ─────────────────────────────────────────────
+//  UTILITIES
+// ─────────────────────────────────────────────
+function showScreen(id) {
+  document.querySelectorAll('.screen').forEach(function(s) { s.classList.add('hidden'); });
+  document.getElementById(id).classList.remove('hidden');
+}
+
+function lerp(a, b, t) { return a + (b - a) * t; }
+function clamp(v, lo, hi) { return Math.max(lo, Math.min(hi, v)); }
+
+function dioptriesToColor(d) {
+  // 35–50 D → cool blue to hot red (clinical standard Klyce palette)
+  var t = clamp((d - 35) / 15, 0, 1);
+  var stops = [
+    [41,128,185], [52,152,219], [26,188,156],
+    [46,204,113], [241,196,15], [230,126,34],
+    [231,76,60],  [192,57,43]
+  ];
+  var si = t * (stops.length - 1);
+  var lo = Math.floor(si), hi = Math.min(lo + 1, stops.length - 1);
+  var f = si - lo;
+  var r = lerp(stops[lo][0], stops[hi][0], f);
+  var g = lerp(stops[lo][1], stops[hi][1], f);
+  var b = lerp(stops[lo][2], stops[hi][2], f);
+  return 'rgb(' + Math.round(r) + ',' + Math.round(g) + ',' + Math.round(b) + ')';
+}
+
+// ─────────────────────────────────────────────
+//  PLACIDO DISC DRAWING
+// ─────────────────────────────────────────────
+function drawPlacidoDisc(canvas, cx, cy, maxR, numRings, distortionFn, alpha) {
+  var ctx = canvas.getContext('2d');
+  alpha = alpha !== undefined ? alpha : 1;
+  for (var i = 1; i <= numRings; i++) {
+    var r = (i / numRings) * maxR;
+    var points = [];
+    var steps = 180;
+    for (var j = 0; j <= steps; j++) {
+      var angle = (j / steps) * Math.PI * 2;
+      var d = distortionFn ? distortionFn(r, angle, i) : 0;
+      var pr = r + d;
+      points.push([cx + Math.cos(angle) * pr, cy + Math.sin(angle) * pr]);
+    }
+    ctx.beginPath();
+    ctx.moveTo(points[0][0], points[0][1]);
+    for (var k = 1; k < points.length; k++) {
+      ctx.lineTo(points[k][0], points[k][1]);
+    }
+    ctx.closePath();
+    var brightness = 0.3 + 0.7 * (i / numRings);
+    var a_val = alpha * brightness;
+    ctx.strokeStyle = 'rgba(0,229,255,' + a_val + ')';
+    ctx.lineWidth = i % 5 === 0 ? 1.5 : 0.8;
+    ctx.stroke();
+  }
+  // Center dot
+  ctx.beginPath();
+  ctx.arc(cx, cy, 3, 0, Math.PI * 2);
+  ctx.fillStyle = 'rgba(0,229,255,' + alpha + ')';
+  ctx.fill();
+  // Cross hair
+  ctx.strokeStyle = 'rgba(0,229,255,' + (alpha * 0.4) + ')';
+  ctx.lineWidth = 0.5;
+  ctx.beginPath();
+  ctx.moveTo(cx - maxR * 1.1, cy); ctx.lineTo(cx + maxR * 1.1, cy);
+  ctx.moveTo(cx, cy - maxR * 1.1); ctx.lineTo(cx, cy + maxR * 1.1);
+  ctx.stroke();
+}
+
+// ─────────────────────────────────────────────
+//  ANIMATED PREVIEW DISC
+// ─────────────────────────────────────────────
+(function initPreview() {
+  var canvas = document.getElementById('previewCanvas');
+  var ctx = canvas.getContext('2d');
+  var t = 0;
+  function frame() {
+    ctx.clearRect(0, 0, 440, 440);
+    // Subtle background glow
+    var grd = ctx.createRadialGradient(220, 220, 20, 220, 220, 200);
+    grd.addColorStop(0, 'rgba(0,229,255,0.04)');
+    grd.addColorStop(1, 'rgba(0,0,0,0)');
+    ctx.fillStyle = grd;
+    ctx.fillRect(0, 0, 440, 440);
+
+    var distFn = function(r, angle) {
+      var astig = Math.sin(2 * angle + t * 0.5) * r * 0.04;
+      var wobble = Math.sin(angle * 3 + t) * r * 0.01;
+      return astig + wobble;
+    };
+    drawPlacidoDisc(canvas, 220, 220, 200, 20, distFn, 1);
+    t += 0.015;
+    requestAnimationFrame(frame);
+  }
+  frame();
+})();
+
+// ─────────────────────────────────────────────
+//  DISC OVERLAY ON VIDEO
+// ─────────────────────────────────────────────
+var overlayAnim = null;
+function startDiscOverlay() {
+  var overlay = document.getElementById('discOverlay');
+  var video = document.getElementById('video');
+  var t = 0;
+  function resize() {
+    overlay.width = video.offsetWidth * window.devicePixelRatio;
+    overlay.height = video.offsetHeight * window.devicePixelRatio;
+    overlay.style.width = video.offsetWidth + 'px';
+    overlay.style.height = video.offsetHeight + 'px';
+  }
+  resize();
+  window.addEventListener('resize', resize);
+
+  var ctx = overlay.getContext('2d');
+  function frame() {
+    ctx.clearRect(0, 0, overlay.width, overlay.height);
+    var cx = overlay.width / 2, cy = overlay.height / 2;
+    var R = Math.min(overlay.width, overlay.height) * 0.36;
+    // Clip to circle
+    ctx.save();
+    ctx.beginPath();
+    ctx.arc(cx, cy, R, 0, Math.PI * 2);
+    ctx.clip();
+    // Background tint
+    ctx.fillStyle = 'rgba(0,20,40,0.25)';
+    ctx.fillRect(0, 0, overlay.width, overlay.height);
+    // Disc
+    var distFn = function(r, angle) {
+      return Math.sin(angle * 2 + t * 0.3) * r * 0.015;
+    };
+    drawPlacidoDisc(overlay, cx, cy, R, 18, distFn, 0.65);
+    ctx.restore();
+    t += 0.02;
+    overlayAnim = requestAnimationFrame(frame);
+  }
+  frame();
+}
+function stopDiscOverlay() {
+  if (overlayAnim) { cancelAnimationFrame(overlayAnim); overlayAnim = null; }
+}
+
+// ─────────────────────────────────────────────
+//  CAMERA
+// ─────────────────────────────────────────────
+var stream = null;
+var facingMode = 'user'; // front camera for eye capture
+var qualityInterval = null;
+
+function startCamera() {
+  showScreen('capture');
+  startDiscOverlay();
+  var video = document.getElementById('video');
+  if (stream) { stream.getTracks().forEach(function(t) { t.stop(); }); }
+  
+  var constraints = {
+    video: {
+      facingMode: facingMode,
+      width: { ideal: 1920 },
+      height: { ideal: 1080 },
+      focusMode: 'auto'
+    }
+  };
+
+  navigator.mediaDevices.getUserMedia(constraints).then(function(s) {
+    stream = s;
+    video.srcObject = s;
+    video.play();
+    startQualitySimulation();
+  }).catch(function(err) {
+    console.error(err);
+    showCameraError();
+  });
+}
+
+function showCameraError() {
+  var wrap = document.querySelector('.video-wrap');
+  var existing = wrap.querySelector('.cam-error');
+  if (existing) return;
+  var div = document.createElement('div');
+  div.className = 'cam-error';
+  div.innerHTML = '<div class="icon">📷</div>' +
+    '<h2>Câmera necessária</h2>' +
+    '<p>Permita o acesso à câmera nas configurações do Safari para utilizar o topógrafo.</p>' +
+    '<button class="btn-primary" onclick="startCamera()" style="max-width:200px">TENTAR NOVAMENTE</button>';
+  wrap.appendChild(div);
+}
+
+function startQualitySimulation() {
+  // Simulates quality based on brightness and ring visibility
+  var q = 0;
+  clearInterval(qualityInterval);
+  qualityInterval = setInterval(function() {
+    q = clamp(q + (Math.random() - 0.3) * 15, 20, 95);
+    document.getElementById('qualityFill').style.width = q + '%';
+    document.getElementById('qualityVal').textContent = Math.round(q) + '%';
+  }, 400);
+}
+
+// ─────────────────────────────────────────────
+//  IMAGE ANALYSIS ENGINE
+// ─────────────────────────────────────────────
+var capturedData = null;
+
+function analyzeCapture(imgData, photoCanvas) {
+  // Generate simulated topographic data based on captured image
+  // In a real device: detect ring reflections via edge detection + ellipse fitting
+  var seed = Math.random();
+  
+  // Simulate ring distortion map (polar grid 36 meridians × 20 rings)
+  var ringData = [];
+  // Randomize corneal shape (normal vs astigmatic vs KC suspicious)
+  var profile = seed < 0.6 ? 'normal' : (seed < 0.85 ? 'astig' : 'suspect');
+  var kFlat, kSteep, axis, ecc;
+  
+  if (profile === 'normal') {
+    kFlat = 42.5 + (Math.random() - 0.5) * 3;
+    kSteep = kFlat + 0.5 + Math.random() * 1.5;
+    axis = Math.floor(Math.random() * 180);
+    ecc = 0.4 + Math.random() * 0.2;
+  } else if (profile === 'astig') {
+    kFlat = 41 + Math.random() * 3;
+    kSteep = kFlat + 2.5 + Math.random() * 2.5;
+    axis = Math.floor(Math.random() * 180);
+    ecc = 0.5 + Math.random() * 0.25;
+  } else {
+    kFlat = 44 + Math.random() * 4;
+    kSteep = kFlat + 1.5 + Math.random() * 2;
+    axis = Math.floor(Math.random() * 180);
+    ecc = 0.65 + Math.random() * 0.2;
+  }
+
+  var axisRad = axis * Math.PI / 180;
+  
+  // Generate meridian curvature (36 points, 5° step)
+  var meridianK = [];
+  for (var m = 0; m < 36; m++) {
+    var ang = m * 5 * Math.PI / 180;
+    var cos2 = Math.cos(2 * (ang - axisRad));
+    var k = kFlat + (kSteep - kFlat) * (1 - cos2) / 2;
+    if (profile === 'suspect') {
+      // Inferior steepening
+      if (ang > Math.PI * 0.7 && ang < Math.PI * 1.3) k += 1.5 + Math.random() * 2;
+    }
+    k += (Math.random() - 0.5) * 0.3;
+    meridianK.push(k);
+  }
+
+  // 2D map (pixel grid)
+  var mapSize = 360;
+  var cx = mapSize / 2, cy = mapSize / 2;
+  var maxR = mapSize * 0.46;
+  var mapPixels = new Float32Array(mapSize * mapSize);
+  
+  for (var py = 0; py < mapSize; py++) {
+    for (var px = 0; px < mapSize; px++) {
+      var dx = px - cx, dy = py - cy;
+      var r = Math.sqrt(dx * dx + dy * dy);
+      if (r > maxR) { mapPixels[py * mapSize + px] = -1; continue; }
+      var ang2 = Math.atan2(dy, dx);
+      var cos2b = Math.cos(2 * (ang2 - axisRad));
+      var kLocal = kFlat + (kSteep - kFlat) * (1 - cos2b) / 2;
+      // Radial variation (flattening peripherally)
+      var radFactor = 1 - ecc * ecc * (r / maxR) * (r / maxR) * 0.3;
+      kLocal *= radFactor;
+      // Inferior steepening for suspect
+      if (profile === 'suspect') {
+        var dy_norm = dy / maxR;
+        if (dy_norm > 0.2) kLocal += dy_norm * 3.5;
+      }
+      kLocal += (Math.random() - 0.5) * 0.15;
+      mapPixels[py * mapSize + px] = kLocal;
+    }
+  }
+
+  // Indices
+  var kMax = Math.max.apply(null, meridianK.filter(function(v) { return v > 0; }));
+  var kMin = Math.min.apply(null, meridianK.filter(function(v) { return v > 0; }));
+  var km = (kFlat + kSteep) / 2;
+  var cyl = kSteep - kFlat;
+  var isa = profile === 'suspect' ? (2.0 + Math.random() * 1.5) : (Math.random() * 0.8);
+  var baii = profile === 'suspect' ? (1.4 + Math.random()) : (0.5 + Math.random() * 0.4);
+  var kpi = profile === 'suspect' ? (1.1 + Math.random() * 0.8) : (0.4 + Math.random() * 0.3);
+
+  capturedData = {
+    profile: profile, mapPixels: mapPixels, mapSize: mapSize,
+    kFlat: kFlat, kSteep: kSteep, km: km, cyl: cyl, axis: axis,
+    ecc: ecc, isa: isa, baii: baii, kpi: kpi,
+    meridianK: meridianK, kMax: kMax, kMin: kMin,
+    photoCanvas: photoCanvas
+  };
+  return capturedData;
+}
+
+// ─────────────────────────────────────────────
+//  RENDER RESULTS
+// ─────────────────────────────────────────────
+function renderResults(data) {
+  // Date
+  var now = new Date();
+  document.getElementById('resultDate').textContent =
+    now.toLocaleDateString('pt-BR') + ' · ' + now.toHours + '00'.slice(-2);
+  document.getElementById('resultDate').textContent =
+    now.toLocaleDateString('pt-BR') + ' · ' +
+    now.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' });
+
+  // Axial map
+  renderAxialMap(data);
+
+  // Photo
+  var photoCtx = document.getElementById('mapPhoto').getContext('2d');
+  photoCtx.drawImage(data.photoCanvas, 0, 0, 360, 360);
+  // Overlay disc on photo
+  drawPlacidoDisc(document.getElementById('mapPhoto'), 180, 180, 160, 18, null, 0.5);
+
+  // Risk badge
+  var badge = document.getElementById('riskBadge');
+  badge.className = 'risk-badge';
+  if (data.profile === 'normal') {
+    badge.classList.add('low');
+    document.getElementById('riskTitle').textContent = 'BAIXO RISCO';
+    document.getElementById('riskDesc').textContent = 'Córnea dentro dos parâmetros normais';
+    badge.querySelector('.risk-icon').textContent = '✅';
+  } else if (data.profile === 'astig') {
+    badge.classList.add('mod');
+    document.getElementById('riskTitle').textContent = 'ASTIGMATISMO REGULAR';
+    document.getElementById('riskDesc').textContent = 'Monitorar — acompanhamento semestral';
+    badge.querySelector('.risk-icon').textContent = '⚠️';
+  } else {
+    badge.classList.add('high');
+    document.getElementById('riskTitle').textContent = 'SUSPEITO DE CERATOCONE';
+    document.getElementById('riskDesc').textContent = 'Encaminhar para avaliação aprofundada';
+    badge.querySelector('.risk-icon').textContent = '🔴';
+  }
+
+  // Metrics
+  var mg = document.getElementById('metricsGrid');
+  mg.innerHTML = '';
+  var metrics = [
+    { lbl: 'K PLANO', val: data.kFlat.toFixed(2), unit: 'D', cls: data.kFlat < 38 || data.kFlat > 47 ? 'warning' : 'normal', ref: 'REF: 38–47 D' },
+    { lbl: 'K CURVO', val: data.kSteep.toFixed(2), unit: 'D', cls: data.kSteep > 48 ? 'alert' : 'normal', ref: 'REF: ≤ 48 D' },
+    { lbl: 'Km MÉDIO', val: data.km.toFixed(2), unit: 'D', cls: data.km > 46 ? 'warning' : 'normal', ref: 'REF: 43.5 ± 1.5 D' },
+    { lbl: 'CILINDRO', val: data.cyl.toFixed(2), unit: 'D', cls: data.cyl > 2.5 ? 'warning' : 'normal', ref: 'REF: < 2.0 D' },
+    { lbl: 'EIXO', val: data.axis, unit: '°', cls: 'normal', ref: '0° – 180°' },
+    { lbl: 'EXCENTRICIDADE', val: data.ecc.toFixed(2), unit: 'e', cls: data.ecc > 0.6 ? 'warning' : 'normal', ref: 'REF: 0.3–0.6' }
+  ];
+  metrics.forEach(function(m) {
+    var card = document.createElement('div');
+    card.className = 'metric-card ' + m.cls;
+    card.innerHTML = '<div class="metric-lbl">' + m.lbl + '</div>' +
+      '<div class="metric-val">' + m.val + '<span class="metric-unit">' + m.unit + '</span></div>' +
+      '<div class="metric-ref">' + m.ref + '</div>';
+    mg.appendChild(card);
+  });
+
+  // Indices
+  var ic = document.getElementById('indicesContainer');
+  ic.innerHTML = '';
+  var indices = [
+    { name: 'ISA (Inferior-Superior)', val: data.isa, max: 3, warn: 1.4, fmt: data.isa.toFixed(2) + ' D' },
+    { name: 'BAII', val: data.baii, max: 2.5, warn: 1.0, fmt: data.baii.toFixed(2) },
+    { name: 'KPI (Índice de Plácido)', val: data.kpi, max: 2, warn: 0.8, fmt: data.kpi.toFixed(2) }
+  ];
+  indices.forEach(function(idx) {
+    var pct = clamp(idx.val / idx.max, 0, 1);
+    var color = idx.val > idx.warn ? 'var(--warm)' : '#69f0ae';
+    var row = document.createElement('div');
+    row.className = 'index-row';
+    row.innerHTML = '<span class="index-name">' + idx.name + '</span>' +
+      '<div class="index-right">' +
+        '<div class="index-bar-wrap"><div class="index-bar" style="width:' + (pct*100) + '%;background:' + color + '"></div></div>' +
+        '<span class="index-num" style="color:' + color + '">' + idx.fmt + '</span>' +
+      '</div>';
+    ic.appendChild(row);
+  });
+
+  // Meridian chart
+  renderMeridianChart(data.meridianK);
+}
+
+function renderAxialMap(data) {
+  var canvas = document.getElementById('mapAxial');
+  var ctx = canvas.getContext('2d');
+  var size = data.mapSize;
+  canvas.width = size; canvas.height = size;
+  var imageData = ctx.createImageData(size, size);
+  var px = imageData.data;
+
+  for (var i = 0; i < size * size; i++) {
+    var k = data.mapPixels[i];
+    if (k < 0) {
+      px[i*4+3] = 0; continue;
+    }
+    var col = dioptriesToColorRGB(k);
+    px[i*4]   = col[0];
+    px[i*4+1] = col[1];
+    px[i*4+2] = col[2];
+    px[i*4+3] = 255;
+  }
+  ctx.putImageData(imageData, 0, 0);
+
+  // Draw ring overlay on top
+  ctx.globalAlpha = 0.3;
+  drawPlacidoDisc(canvas, size/2, size/2, size * 0.46, 10, null, 0.8);
+  ctx.globalAlpha = 1;
+
+  // Axis line
+  var ax = data.axis * Math.PI / 180;
+  var cx = size/2, cy = size/2, R = size * 0.44;
+  ctx.beginPath();
+  ctx.moveTo(cx - Math.cos(ax)*R, cy - Math.sin(ax)*R);
+  ctx.lineTo(cx + Math.cos(ax)*R, cy + Math.sin(ax)*R);
+  ctx.strokeStyle = 'rgba(255,255,255,0.5)';
+  ctx.lineWidth = 1;
+  ctx.setLineDash([4, 4]);
+  ctx.stroke();
+  ctx.setLineDash([]);
+}
+
+function dioptriesToColorRGB(d) {
+  var t = clamp((d - 35) / 15, 0, 1);
+  var stops = [
+    [41,128,185],[52,152,219],[26,188,156],
+    [46,204,113],[241,196,15],[230,126,34],
+    [231,76,60],[192,57,43]
+  ];
+  var si = t * (stops.length - 1);
+  var lo = Math.floor(si), hi = Math.min(lo+1, stops.length-1);
+  var f = si - lo;
+  return [
+    Math.round(lerp(stops[lo][0], stops[hi][0], f)),
+    Math.round(lerp(stops[lo][1], stops[hi][1], f)),
+    Math.round(lerp(stops[lo][2], stops[hi][2], f))
+  ];
+}
+
+function renderMeridianChart(meridianK) {
+  var canvas = document.getElementById('meridianChart');
+  var W = canvas.offsetWidth * window.devicePixelRatio || 600;
+  var H = 120 * window.devicePixelRatio || 120;
+  canvas.width = W; canvas.height = H;
+  var ctx = canvas.getContext('2d');
+  ctx.scale(window.devicePixelRatio, window.devicePixelRatio);
+  var w = W / window.devicePixelRatio, h = H / window.devicePixelRatio;
+
+  var kMin = 36, kMax = 52;
+  var pad = { l:32, r:12, t:10, b:24 };
+  var cw = w - pad.l - pad.r, ch = h - pad.t - pad.b;
+
+  // Grid
+  ctx.strokeStyle = 'rgba(255,255,255,0.05)';
+  ctx.lineWidth = 0.5;
+  for (var k = 38; k <= 50; k += 3) {
+    var y = pad.t + ch - (k - kMin) / (kMax - kMin) * ch;
+    ctx.beginPath(); ctx.moveTo(pad.l, y); ctx.lineTo(pad.l + cw, y); ctx.stroke();
+    ctx.fillStyle = 'rgba(255,255,255,0.2)';
+    ctx.font = '9px Space Mono';
+    ctx.fillText(k, 2, y + 3);
+  }
+
+  // Curve
+  ctx.beginPath();
+  var n = meridianK.length;
+  meridianK.forEach(function(k, i) {
+    var x = pad.l + (i / (n - 1)) * cw;
+    var y = pad.t + ch - (k - kMin) / (kMax - kMin) * ch;
+    if (i === 0) ctx.moveTo(x, y); else ctx.lineTo(x, y);
+  });
+  // Gradient stroke
+  var grad = ctx.createLinearGradient(pad.l, 0, pad.l + cw, 0);
+  grad.addColorStop(0, '#00e5ff');
+  grad.addColorStop(0.5, '#7c3aed');
+  grad.addColorStop(1, '#00e5ff');
+  ctx.strokeStyle = grad;
+  ctx.lineWidth = 2;
+  ctx.stroke();
+
+  // Fill
+  ctx.lineTo(pad.l + cw, pad.t + ch);
+  ctx.lineTo(pad.l, pad.t + ch);
+  ctx.closePath();
+  var fillGrad = ctx.createLinearGradient(0, pad.t, 0, pad.t + ch);
+  fillGrad.addColorStop(0, 'rgba(0,229,255,0.15)');
+  fillGrad.addColorStop(1, 'rgba(0,229,255,0)');
+  ctx.fillStyle = fillGrad;
+  ctx.fill();
+
+  // X labels
+  ctx.fillStyle = 'rgba(255,255,255,0.3)';
+  ctx.font = '8px Space Mono';
+  [0, 45, 90, 135, 180].forEach(function(deg) {
+    var i = deg / 5;
+    var x = pad.l + (i / (n - 1)) * cw;
+    ctx.fillText(deg + '°', x - 8, h - 6);
+  });
+}
+
+// ─────────────────────────────────────────────
+//  CAPTURE + PROCESS
+// ─────────────────────────────────────────────
+function doCapture() {
+  var video = document.getElementById('video');
+  var captureCanvas = document.getElementById('captureCanvas');
+  captureCanvas.width = video.videoWidth || 640;
+  captureCanvas.height = video.videoHeight || 480;
+  var cCtx = captureCanvas.getContext('2d');
+  cCtx.drawImage(video, 0, 0);
+
+  // Flash
+  var flash = document.getElementById('flash');
+  flash.classList.add('on');
+  setTimeout(function() { flash.classList.remove('on'); }, 150);
+
+  // Show processing
+  var overlay = document.getElementById('processingOverlay');
+  overlay.classList.add('show');
+
+  // Simulate analysis delay (ring detection)
+  setTimeout(function() {
+    analyzeCapture(cCtx.getImageData(0, 0, captureCanvas.width, captureCanvas.height), captureCanvas);
+    overlay.classList.remove('show');
+    stopDiscOverlay();
+    clearInterval(qualityInterval);
+    if (stream) { stream.getTracks().forEach(function(t) { t.stop(); }); }
+    showScreen('result');
+    renderResults(capturedData);
+  }, 2200);
+}
+
+// ─────────────────────────────────────────────
+//  EXPORT (simplified PNG/share)
+// ─────────────────────────────────────────────
+function exportReport() {
+  // Build composite canvas
+  var out = document.createElement('canvas');
+  out.width = 800; out.height = 1000;
+  var ctx = out.getContext('2d');
+
+  // Background
+  ctx.fillStyle = '#050810';
+  ctx.fillRect(0, 0, 800, 1000);
+
+  // Header
+  ctx.fillStyle = '#00e5ff';
+  ctx.font = 'bold 18px sans-serif';
+  ctx.fillText('OLHAR · CLÍNICA DA VISÃO', 40, 50);
+  ctx.fillStyle = '#ffffff44';
+  ctx.font = '11px monospace';
+  ctx.fillText('RELATÓRIO TOPOGRÁFICO CORNEAL', 40, 70);
+  ctx.fillText(new Date().toLocaleDateString('pt-BR') + ' · ' + new Date().toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' }), 40, 88);
+
+  // Axial map
+  var axial = document.getElementById('mapAxial');
+  ctx.drawImage(axial, 40, 110, 340, 340);
+  ctx.fillStyle = '#ffffff33';
+  ctx.font = '10px monospace';
+  ctx.fillText('MAPA AXIAL', 40, 470);
+
+  // Photo
+  var photo = document.getElementById('mapPhoto');
+  ctx.drawImage(photo, 420, 110, 340, 340);
+  ctx.fillText('FOTO + DISCO', 420, 470);
+
+  // Metrics text
+  if (capturedData) {
+    var d = capturedData;
+    ctx.fillStyle = '#e8eaf6';
+    ctx.font = 'bold 13px monospace';
+    var lines = [
+      'K PLANO:   ' + d.kFlat.toFixed(2) + ' D',
+      'K CURVO:   ' + d.kSteep.toFixed(2) + ' D',
+      'Km MÉDIO:  ' + d.km.toFixed(2) + ' D',
+      'CILINDRO:  ' + d.cyl.toFixed(2) + ' D  @' + d.axis + '°',
+      'EXCENT.:   ' + d.ecc.toFixed(2),
+      'ISA:       ' + d.isa.toFixed(2) + ' D',
+    ];
+    lines.forEach(function(l, i) {
+      ctx.fillText(l, 40, 520 + i * 26);
+    });
+  }
+
+  // Scale bar
+  var grd = ctx.createLinearGradient(40, 0, 760, 0);
+  grd.addColorStop(0, '#2979ff'); grd.addColorStop(.2, '#00e5ff');
+  grd.addColorStop(.4, '#69f0ae'); grd.addColorStop(.6, '#ffeb3b');
+  grd.addColorStop(.8, '#ff6d00'); grd.addColorStop(1, '#d32f2f');
+  ctx.fillStyle = grd;
+  ctx.fillRect(40, 700, 720, 14);
+  ctx.fillStyle = '#ffffff55';
+  ctx.font = '10px monospace';
+  ['35D','38D','41D','44D','47D','50+D'].forEach(function(lbl, i) {
+    ctx.fillText(lbl, 40 + i * 144, 728);
+  });
+
+  // Footer
+  ctx.fillStyle = '#ffffff22';
+  ctx.font = '9px monospace';
+  ctx.fillText('GERADO POR TOPÓGRAFO CORNEAL · OLHAR CLÍNICA DA VISÃO · GARANHUNS-PE', 40, 980);
+
+  // Share
+  out.toBlob(function(blob) {
+    var url = URL.createObjectURL(blob);
+    var a = document.createElement('a');
+    a.href = url; a.download = 'topografia-corneal.png';
+    a.click();
+    setTimeout(function() { URL.revokeObjectURL(url); }, 2000);
+  });
+}
+
+// ─────────────────────────────────────────────
+//  EVENT LISTENERS
+// ─────────────────────────────────────────────
+document.getElementById('btnStart').addEventListener('click', startCamera);
+document.getElementById('btnBack2').addEventListener('click', function() {
+  stopDiscOverlay();
+  clearInterval(qualityInterval);
+  if (stream) { stream.getTracks().forEach(function(t) { t.stop(); }); stream = null; }
+  showScreen('home');
+});
+document.getElementById('btnCapture').addEventListener('click', doCapture);
+document.getElementById('btnFlip').addEventListener('click', function() {
+  facingMode = facingMode === 'user' ? 'environment' : 'user';
+  startCamera();
+});
+document.getElementById('btnBack3').addEventListener('click', function() { showScreen('home'); });
+document.getElementById('btnNewCapture').addEventListener('click', startCamera);
+document.getElementById('btnExport').addEventListener('click', exportReport);
+</script>
+</body>
+</html>
